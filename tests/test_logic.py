@@ -95,3 +95,34 @@ def test_seleccion_evita_rafagas_cuando_hay_alternativas():
 def test_seleccion_no_inventa_fotos_si_hay_pocas_aptas():
     items = [foto("ok.jpg"), foto("mala.jpg", sharpness=1.0)]
     assert [e["name"] for e in selection.select(items, 20)] == ["ok.jpg"]
+
+
+def foto_sin_ia(name, sharp=200.0, paper=0.0):
+    return {
+        "id": name, "name": name, "valid": True, "width": 6000, "height": 4000, "short_side": 4000,
+        "sharpness": sharp, "paper_ratio": paper, "no_ai": True,
+        "analysis": {"contiene_documento": False, "datos_personales_legibles": False, "calidad": 5,
+                     "accion": "otro", "colores_camisetas": [], "publicable": True,
+                     "confianza": 1.0, "motivo": "sin revisión de IA"},
+    }
+
+
+def test_sin_ia_descarta_posibles_planillas():
+    planilla = foto_sin_ia("planilla.jpg", paper=0.8)
+    normal = foto_sin_ia("gol.jpg", paper=0.05)
+    assert any("planilla" in r for r in selection.exclusion_reasons(planilla))
+    assert not selection.exclusion_reasons(normal)
+
+
+def test_sin_ia_reparte_a_lo_largo_de_la_jornada():
+    items = [foto_sin_ia(f"DSC_{1000 + n}.jpg", sharp=100 + (n % 7)) for n in range(100)]
+    elegidas = selection.select_spread(items, 20)
+    numeros = sorted(int(e["name"][4:8]) for e in elegidas)
+    assert len(elegidas) == 20
+    assert numeros[0] < 1010 and numeros[-1] > 1090          # cubre inicio y final
+    assert all(b - a >= 1 for a, b in zip(numeros, numeros[1:]))
+
+
+def test_sin_ia_no_elige_fotos_excluidas_ni_inventa():
+    items = [foto_sin_ia("a.jpg"), foto_sin_ia("b.jpg", sharp=1.0), foto_sin_ia("c.jpg", paper=0.9)]
+    assert [e["name"] for e in selection.select_spread(items, 20)] == ["a.jpg"]

@@ -7,12 +7,21 @@ from email.message import EmailMessage
 from html import escape
 
 
-def build_markdown(batch: dict, items: list[dict], selected: list[dict], reasons: dict, usage: dict) -> str:
+NO_AI_WARNING = (
+    "SIN REVISIÓN CON IA: la privacidad (DNI, planillas, datos personales) solo se controló con una "
+    "detección simple y aproximada, y la elección se hizo por nitidez y reparto a lo largo de la jornada. "
+    "REVISAR A MANO antes de publicar."
+)
+
+
+def build_markdown(batch: dict, items: list[dict], selected: list[dict], reasons: dict, usage: dict,
+                   use_ai: bool = True) -> str:
     excluded = [i for i in items if reasons[i["id"]]]
     counts = Counter(r.split(" (")[0] for i in excluded for r in reasons[i["id"]])
     lines = [
         f"# {batch['tournament']} — {batch['fecha']} (MODO PRUEBA, no se publicó nada)",
         "",
+        *([] if use_ai else [f"> **ATENCIÓN: {NO_AI_WARNING}**", ""]),
         f"- Fotos encontradas: {len(items)}",
         f"- Elegidas: {len(selected)}",
         f"- Excluidas: {len(excluded)}",
@@ -34,7 +43,8 @@ def build_markdown(batch: dict, items: list[dict], selected: list[dict], reasons
     return "\n".join(lines) + "\n"
 
 
-def build_html(batch: dict, items: list[dict], selected: list[dict], reasons: dict, usage: dict) -> str:
+def build_html(batch: dict, items: list[dict], selected: list[dict], reasons: dict, usage: dict,
+               use_ai: bool = True) -> str:
     excluded = [i for i in items if reasons[i["id"]]]
     rows = "".join(
         f"<li><a href=\"{escape(i.get('webViewLink', ''))}\">{escape(i['name'])}</a> — "
@@ -47,6 +57,7 @@ def build_html(batch: dict, items: list[dict], selected: list[dict], reasons: di
     more = f"<p>(y {len(excluded) - 40} más en el informe completo del repositorio)</p>" if len(excluded) > 40 else ""
     return f"""<h2>{escape(batch['tournament'])} — {escape(batch['fecha'])}</h2>
 <p><b>MODO PRUEBA:</b> no se publicó ni se borró nada.</p>
+{'' if use_ai else '<p><b>ATENCIÓN: ' + escape(NO_AI_WARNING) + '</b></p>'}
 <p>Encontradas: {len(items)} · Elegidas: {len(selected)} · Excluidas: {len(excluded)}<br>
 Tokens de IA: {usage['input']} entrada / {usage['output']} salida</p>
 <h3>Fotos elegidas</h3><ol>{rows}</ol>

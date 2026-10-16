@@ -18,6 +18,8 @@ def technical_reasons(item: dict) -> list[str]:
         reasons.append(f"resolución baja ({item['width']}x{item['height']})")
     if item["sharpness"] < config.MIN_SHARPNESS:
         reasons.append(f"poco nítida (nitidez {item['sharpness']})")
+    if item.get("no_ai") and item.get("paper_ratio", 0) >= config.PAPER_RATIO_MAX:
+        reasons.append(f"posible documento o planilla (detección simple sin IA, papel {item['paper_ratio']})")
     return reasons
 
 
@@ -50,6 +52,21 @@ def base_score(item: dict) -> float:
     quality = float(item["analysis"].get("calidad", 5)) / 10
     sharp = min(item["sharpness"] / (4 * max(config.MIN_SHARPNESS, 1)), 1.0)
     return 0.6 * quality + 0.4 * sharp
+
+
+def select_spread(items: list[dict], count: int) -> list[dict]:
+    """Selección SIN IA: reparte las fotos aptas a lo largo de la jornada (por orden de archivo)
+    y en cada tramo elige la más nítida. No juzga el contenido de la foto."""
+    eligible = sorted((i for i in items if not exclusion_reasons(i)), key=lambda i: i["name"])
+    n = len(eligible)
+    if n <= count:
+        return eligible
+    picked = []
+    for k in range(count):
+        chunk = eligible[k * n // count:(k + 1) * n // count]
+        if chunk:
+            picked.append(max(chunk, key=lambda i: i["sharpness"]))
+    return picked
 
 
 def select(items: list[dict], count: int) -> list[dict]:

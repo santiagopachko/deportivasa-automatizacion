@@ -26,4 +26,8 @@ MODEL = os.environ.get("MODEL_TRIAGE", "claude-haiku-5-5")
 # Lotes que se procesan como máximo por ejecución (controla tiempo y costo).
 MAX_BATCHES_PER_RUN = int(os.environ.get("MAX_BATCHES_PER_RUN", "1"))
 
-IMAGE_MIMES = {"image/jpeg", "image/png"}
+# Modo SIN IA: se descarta la foto si más de esta proporción parece "papel" (planilla/documento).
+# Es una detección simple y aproximada; hay que calibrarla con fotos reales.
+PAPER_RATIO_MAX = float(os.environ.get("PAPER_RATIO_MAX", "0.45"))
+
+IMAGE_MIMES ={"image/jpeg", "image/png"}

@@ -53,8 +53,11 @@ def run_listing(svc, only_folder: str) -> None:
 
 
 def process_batch(svc, batch: dict, files: list[dict]) -> dict:
-    from . import analyze, imaging
+    from . import imaging
 
+    use_ai = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    if use_ai:
+        from . import analyze
     seen_md5: dict[str, str] = {}
     items, usage = [], {"input": 0, "output": 0}
     for n, f in enumerate(sorted(files, key=lambda x: x["name"]), 1):
@@ -75,7 +78,15 @@ def process_batch(svc, batch: dict, files: list[dict]) -> dict:
         info = imaging.inspect(data)
         preview = info.pop("preview_jpeg", None)
         item.update(info)
-        if item["valid"] and not selection.technical_reasons(item) and preview:
+        if not use_ai:
+            # Modo SIN IA: no hay juicio sobre el contenido; solo controles técnicos.
+            item["no_ai"] = True
+            item["analysis"] = {
+                "contiene_documento": False, "datos_personales_legibles": False,
+                "calidad": 5, "accion": "otro", "colores_camisetas": [],
+                "publicable": True, "confianza": 1.0, "motivo": "sin revisión de IA",
+            }
+        elif item["valid"] and not selection.technical_reasons(item) and preview:
             result, used, err = analyze.analyze(preview)
             item["analysis"], item["analysis_error"] = result, err
             usage["input"] += used["input"]
@@ -85,8 +96,9 @@ def process_batch(svc, batch: dict, files: list[dict]) -> dict:
             print(f"  procesadas {n}/{len(files)}")
 
     reasons = {i["id"]: selection.exclusion_reasons(i) for i in items}
-    selected = selection.select(items, config.SELECT_COUNT)
-    return {"items": items, "selected": selected, "reasons": reasons, "usage": usage}
+    chooser = selection.select if use_ai else selection.select_spread
+    selected = chooser(items, config.SELECT_COUNT)
+    return {"items": items, "selected": selected, "reasons": reasons, "usage": usage, "use_ai": use_ai}
 
 
 def run_full(svc, only_folder: str) -> int:
@@ -108,12 +120,12 @@ def run_full(svc, only_folder: str) -> int:
 
         print(f"Procesando {b['tournament']} {b['fecha']} ({len(files)} fotos)...")
         res = process_batch(svc, b, files)
-        md = report.build_markdown(b, res["items"], res["selected"], res["reasons"], res["usage"])
+        md = report.build_markdown(b, res["items"], res["selected"], res["reasons"], res["usage"], res["use_ai"])
         out = Path(report.report_filename(b, now))
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(md, encoding="utf-8")
 
-        html = report.build_html(b, res["items"], res["selected"], res["reasons"], res["usage"])
+        html = report.build_html(b, res["items"], res["selected"], res["reasons"], res["usage"], res["use_ai"])
         mail_status = report.send_mail(f"DEPORTIVASA — Resumen (prueba): {b['tournament']} {b['fecha']}", html)
         summary(f"**{b['tournament']} {b['fecha']}**: {len(res['selected'])} elegidas de {len(files)}. {mail_status}.")
 

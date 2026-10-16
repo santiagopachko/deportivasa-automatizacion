@@ -27,6 +27,9 @@ def inspect(data: bytes, max_side: int = 1024) -> dict:
     small = img.copy()
     small.thumbnail((max_side, max_side))
     gray = np.asarray(small.convert("L"), dtype=np.float32)
+    # Proporción de píxeles "de papel": muy claros y casi sin color (hojas, planillas, pantallas blancas).
+    hsv = np.asarray(small.convert("HSV"))
+    paper_ratio = float(((hsv[..., 1] < 40) & (hsv[..., 2] > 190)).mean())
     buf = io.BytesIO()
     small.save(buf, "JPEG", quality=80)
     return {
@@ -35,5 +38,6 @@ def inspect(data: bytes, max_side: int = 1024) -> dict:
         "height": height,
         "short_side": min(width, height),
         "sharpness": round(laplacian_variance(gray), 1),
+        "paper_ratio": round(paper_ratio, 3),
         "preview_jpeg": buf.getvalue(),
     }
