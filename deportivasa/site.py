@@ -1,5 +1,6 @@
 """Página 'link en la bio': botones a la última fecha de cada torneo. Solo links públicos, sin fotos."""
 import re
+from datetime import datetime, timedelta, timezone
 from html import escape
 
 CSS = """
@@ -42,13 +43,14 @@ def build_index(batches: list[dict]) -> str:
                 f'<a class="old" href="{escape(url(b))}">{escape(b["fecha"].title())}</a>' for b in fechas[1:]
             )
             anteriores.append(f"<h2>{escape(t.upper())} · ANTERIORES</h2>{links}")
+    hoy = (datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%d/%m/%Y")
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>DEPORTIVASA · Fotos</title>
 <style>{CSS}</style></head><body><main>
 <h1>DEPORTIVASA</h1><div class="line"></div>
 <p class="sub">Encontrá tus fotos de la última fecha</p>
 {''.join(botones)}{''.join(anteriores)}
-<footer>@_deportivasa</footer></main></body></html>"""
+<footer>@_deportivasa · actualizado el {hoy}</footer></main></body></html>"""
 
 
 def url(b: dict) -> str:
