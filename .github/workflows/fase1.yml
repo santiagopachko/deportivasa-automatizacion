@@ -51,6 +51,28 @@ jobs:
           MAIL_TO: ${{ secrets.MAIL_TO }}
         run: python -m deportivasa.main --mode "$MODE" --folder-id "$FOLDER_ID"
 
+      - name: Actualizar pagina publica (link en la bio)
+        if: ${{ (inputs.mode || 'full') == 'links' || (inputs.mode || 'full') == 'full' }}
+        env:
+          MODE: ${{ inputs.mode || 'full' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+        run: |
+          if [ -z "$PAGES_TOKEN" ]; then echo "Sin PAGES_TOKEN: pagina no actualizada"; exit 0; fi
+          python -m deportivasa.main --mode links
+          git clone --depth 1 "https://x-access-token:${PAGES_TOKEN}@github.com/santiagopachko/deportivasa.git" /tmp/pagina
+          cp reports/site/index.html /tmp/pagina/index.html
+          cd /tmp/pagina
+          git config user.name "deportivasa-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Actualizar fechas de la pagina"
+            git push origin HEAD:main
+          else
+            echo "La pagina ya estaba al dia"
+          fi
+
       - name: Guardar estado e informes
         run: |
           git config user.name "deportivasa-bot"
