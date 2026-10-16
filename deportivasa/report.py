@@ -84,6 +84,50 @@ def send_mail(subject: str, html: str) -> str:
         return f"mail NO enviado: {type(exc).__name__}: {exc}"
 
 
+def venue_for(tournament: str) -> str:
+    """Sede según el torneo (datos del informe de DEPORTIVASA)."""
+    t = tournament.upper()
+    if "LUGANO" in t:
+        return "SER FÚTBOL JD LUGANO"
+    if "PORVENIR" in t:
+        return "EL PORVENIR DE GERLI"
+    return ""
+
+
+def build_caption(batch: dict) -> str:
+    """Texto institucional de referencia. No inventa resultados, goleadores ni fechas de calendario."""
+    fecha = batch["fecha"].title()  # "FECHA 04" -> "Fecha 04"
+    venue = venue_for(batch["tournament"])
+    lines = [
+        "¡Así se vivió una nueva fecha de DEPORTIVASA! ⚽🔵⚪",
+        "Te compartimos algunos de los mejores momentos de la jornada.",
+    ]
+    if venue:
+        lines.append(f"📍 {venue}")
+    lines += [f"🏆 {batch['tournament']}", f"📅 {fecha}", "DEPORTIVASA — Donde el deporte se vive."]
+    return "\n".join(lines)
+
+
+def build_publish_list(batch: dict, selected: list[dict], now: datetime, group_size: int = 10) -> dict:
+    """Lista para publicar con el OK de Santiago. La numeración coincide con la hoja de contactos."""
+    photos = [
+        {"n": n, "name": i["name"], "file_id": i["id"], "drive_url": i.get("webViewLink", "")}
+        for n, i in enumerate(selected, 1)
+    ]
+    return {
+        "generado": now.isoformat(),
+        "estado": "PENDIENTE DE OK DE SANTIAGO (no publicado)",
+        "torneo": batch["tournament"],
+        "fecha": batch["fecha"],
+        "texto": build_caption(batch),
+        "fotos": photos,
+        # Instagram admite carruseles de hasta 10 fotos; verificar el límite vigente antes de publicar.
+        "grupos_sugeridos": [
+            [p["n"] for p in photos[k:k + group_size]] for k in range(0, len(photos), group_size)
+        ],
+    }
+
+
 def report_filename(batch: dict, now: datetime) -> str:
     slug = "".join(c if c.isalnum() else "_" for c in f"{batch['tournament']}_{batch['fecha']}")
     return f"reports/{slug}_{now.strftime('%Y%m%d_%H%M')}.md"

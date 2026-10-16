@@ -12,7 +12,15 @@ inservibles o con datos personales, elige las mejores y envía un resumen por ma
 3. Controla: imagen válida y completa, no duplicada, resolución y nitidez mínimas.
 4. Revisa cada foto con IA: planillas/DNI/datos personales, calidad, tipo de jugada.
 5. Elige las 20 mejores con variedad de jugadas y camisetas, evitando ráfagas.
-6. Guarda un informe en `reports/` y manda el resumen por mail.
+6. Guarda en `reports/`: el informe, una **hoja de contactos** numerada para revisar de un vistazo
+   y una **lista para publicar** con el texto armado, pendiente del OK.
+7. Sin clave de IA funciona igual (gratis): elige por nitidez y reparto, y detecta planillas con un
+   método simple. En ese modo el informe avisa que hay que revisar a mano.
+
+## Flujo de aprobación
+
+El programa prepara todo; **la publicación solo se hace con el OK explícito de Santiago**,
+que se da en el chat con Claude ("ok, publicá" / "sacá la 7 y la 12").
 
 ## Cómo se usa
 

@@ -126,3 +126,29 @@ def test_sin_ia_reparte_a_lo_largo_de_la_jornada():
 def test_sin_ia_no_elige_fotos_excluidas_ni_inventa():
     items = [foto_sin_ia("a.jpg"), foto_sin_ia("b.jpg", sharp=1.0), foto_sin_ia("c.jpg", paper=0.9)]
     assert [e["name"] for e in selection.select_spread(items, 20)] == ["a.jpg"]
+
+
+def test_hoja_de_contactos_y_lista_de_publicacion():
+    import io
+    from PIL import Image
+    from deportivasa import contactsheet, report
+
+    def jpg(color, size):
+        b = io.BytesIO(); Image.new("RGB", size, color).save(b, "JPEG"); return b.getvalue()
+
+    elegidas = []
+    for n in range(20):
+        f = foto_sin_ia(f"DSC_{1000 + n}.jpg")
+        f["preview"] = jpg((n * 10, 100, 200 - n * 5), (1024, 683) if n % 2 else (683, 1024))
+        f["webViewLink"] = f"https://drive.google.com/file/d/id{n}/view"
+        elegidas.append(f)
+    hoja = Image.open(io.BytesIO(contactsheet.build(elegidas)))
+    assert hoja.size[0] > 1000 and hoja.size[1] > 1000
+
+    batch = {"tournament": "SÁBADOS F8 — LUGANO", "fecha": "FECHA 04", "folder_id": "x"}
+    lista = report.build_publish_list(batch, elegidas, NOW)
+    assert lista["estado"].startswith("PENDIENTE")
+    assert [p["n"] for p in lista["fotos"]] == list(range(1, 21))
+    assert lista["grupos_sugeridos"] == [list(range(1, 11)), list(range(11, 21))]
+    assert "SER FÚTBOL JD LUGANO" in lista["texto"] and "Fecha 04" in lista["texto"]
+    assert "DEPORTIVASA — Donde el deporte se vive." in lista["texto"]

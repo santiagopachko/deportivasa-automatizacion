@@ -11,7 +11,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import config, drive, report, selection, stability
+from . import config, contactsheet, drive, report, selection, stability
 
 STATE_FILE = Path("state/state.json")
 
@@ -78,6 +78,7 @@ def process_batch(svc, batch: dict, files: list[dict]) -> dict:
         info = imaging.inspect(data)
         preview = info.pop("preview_jpeg", None)
         item.update(info)
+        item["preview"] = preview  # se usa para la hoja de contactos; no se guarda en el informe
         if not use_ai:
             # Modo SIN IA: no hay juicio sobre el contenido; solo controles técnicos.
             item["no_ai"] = True
@@ -123,6 +124,21 @@ def run_full(svc, only_folder: str) -> int:
         md = report.build_markdown(b, res["items"], res["selected"], res["reasons"], res["usage"], res["use_ai"])
         out = Path(report.report_filename(b, now))
         out.parent.mkdir(parents=True, exist_ok=True)
+
+        sheet_path = out.with_name(out.stem + "_contactos.jpg")
+        publish_path = out.with_name(out.stem + "_publicar.json")
+        selected_with_preview = [i for i in res["selected"] if i.get("preview")]
+        if selected_with_preview:
+            sheet_path.write_bytes(contactsheet.build(selected_with_preview))
+        publish_path.write_text(
+            json.dumps(report.build_publish_list(b, res["selected"], now), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        md += (
+            "\n## Para revisar y dar el OK\n"
+            f"- Hoja de contactos (fotos numeradas como en la lista de arriba): `{sheet_path.name}`\n"
+            f"- Lista y texto listos para publicar, pendiente del OK: `{publish_path.name}`\n"
+        )
         out.write_text(md, encoding="utf-8")
 
         html = report.build_html(b, res["items"], res["selected"], res["reasons"], res["usage"], res["use_ai"])
