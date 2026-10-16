@@ -190,12 +190,30 @@ def run_demo(svc) -> int:
     return 0
 
 
+def run_links(svc, only_folder: str) -> int:
+    """Lista las carpetas FECHA con fotos y arma la página 'link en la bio'. No publica nada."""
+    from . import site
+
+    batches = []
+    for b in drive.find_batches(svc, only_folder):
+        if drive.list_images(svc, b["folder_id"]):
+            batches.append({k: b[k] for k in ("tournament", "fecha", "folder_id")})
+    out = Path("reports/site")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "links.json").write_text(json.dumps(batches, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out / "index.html").write_text(site.build_index(batches), encoding="utf-8")
+    summary(f"Página generada con {len(batches)} fechas.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["listing", "full", "demo"], default="listing")
+    parser.add_argument("--mode", choices=["listing", "full", "demo", "links"], default="listing")
     parser.add_argument("--folder-id", default="")
     args = parser.parse_args()
     svc = drive.client()
+    if args.mode == "links":
+        return run_links(svc, args.folder_id)
     if args.mode == "demo":
         return run_demo(svc)
     if args.mode == "listing":
