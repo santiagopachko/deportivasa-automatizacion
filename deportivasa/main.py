@@ -170,12 +170,34 @@ def run_full(svc, only_folder: str) -> int:
     return 0
 
 
+def run_demo(svc) -> int:
+    """Genera historias de prueba con las fotos ORIGINALES (alta calidad). No publica nada."""
+    from . import stories
+
+    ids = [x.strip() for x in os.environ.get("DEMO_FILE_IDS", "").split(",") if x.strip()] or [
+        "1TKjX6gEK1hyJ0e5UjSjwKkHIZfo79Kws",  # 05 DSC_0981 vertical
+        "10VXPiMwEJUQF0RVl_3BOziclutDOstts",  # 19 DSC_1100 vertical
+        "1X8HbsgbFxMpiVnofXS07DNs0tgsiGcec",  # 13 DSC_1045 horizontal (recorte central)
+    ]
+    out_dir = Path("reports/demo")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for n, fid in enumerate(ids, 1):
+        data = drive.download(svc, fid)
+        for final in (False, True):
+            name = f"historia_{n}_{'final_link_en_bio' if final else 'normal'}.jpg"
+            (out_dir / name).write_bytes(stories.build_story(data, "FECHA 04", "Sábados F8 · Lugano", final))
+            print("generada", name)
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["listing", "full"], default="listing")
+    parser.add_argument("--mode", choices=["listing", "full", "demo"], default="listing")
     parser.add_argument("--folder-id", default="")
     args = parser.parse_args()
     svc = drive.client()
+    if args.mode == "demo":
+        return run_demo(svc)
     if args.mode == "listing":
         run_listing(svc, args.folder_id)
         return 0

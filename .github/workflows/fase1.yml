@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "listing = solo mira Drive (sin costo) / full = revisa fotos con IA y envía resumen"
+        description: "listing = solo mira Drive (sin costo) / full = revisa fotos con IA y envía resumen / demo = historias de prueba en alta calidad"
         type: choice
         default: listing
-        options: [listing, full]
+        options: [listing, full, demo]
       folder_id:
         description: "Opcional: ID de una carpeta FECHA puntual para procesar solo esa"
         required: false
