@@ -1,0 +1,63 @@
+name: Fase 1 - Revisar fotos (modo prueba)
+
+# Por ahora SOLO se ejecuta a mano desde la pestaña Actions.
+# Cuando el modo "full" haya funcionado bien, se activa la revisión horaria
+# descomentando las dos líneas de "schedule".
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "listing = solo mira Drive (sin costo) / full = revisa fotos con IA y envía resumen"
+        type: choice
+        default: listing
+        options: [listing, full]
+      folder_id:
+        description: "Opcional: ID de una carpeta FECHA puntual para procesar solo esa"
+        required: false
+        default: ""
+  # schedule:
+  #   - cron: "7 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fase1
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar
+        env:
+          MODE: ${{ inputs.mode || 'full' }}
+          FOLDER_ID: ${{ inputs.folder_id }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+        run: python -m deportivasa.main --mode "$MODE" --folder-id "$FOLDER_ID"
+
+      - name: Guardar estado e informes
+        run: |
+          git config user.name "deportivasa-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state reports 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "Fase 1: estado e informes"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi

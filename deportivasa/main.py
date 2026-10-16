@@ -1,0 +1,145 @@
+"""Fase 1 — modo prueba. NO publica en redes y NO borra nada.
+
+Modos:
+  listing  Solo mira Drive y muestra qué lotes hay y si están estables. Sin costo.
+  full     Descarga, revisa con IA, elige las mejores y envía el resumen.
+"""
+import argparse
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+from . import config, drive, report, selection, stability
+
+STATE_FILE = Path("state/state.json")
+
+
+def load_state() -> dict:
+    if STATE_FILE.exists():
+        return json.loads(STATE_FILE.read_text())
+    return {"batches": {}}
+
+
+def save_state(state: dict) -> None:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps(state, indent=2, ensure_ascii=False))
+
+
+def summary(text: str) -> None:
+    print(text)
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if path:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+
+
+def run_listing(svc, only_folder: str) -> None:
+    now = datetime.now(timezone.utc)
+    state = load_state()
+    summary("## Lotes encontrados en Drive (modo listado, no se procesó nada)\n")
+    summary("| Torneo | Fecha | Fotos | Minutos desde la última subida | ¿Estable? | ¿Ya procesado? |")
+    summary("|---|---|---:|---:|---|---|")
+    for b in drive.find_batches(svc, only_folder):
+        files = drive.list_images(svc, b["folder_id"])
+        mins = stability.minutes_since_last_upload(files, now)
+        stable = stability.is_stable(files, now, config.STABLE_MINUTES)
+        done = state["batches"].get(b["folder_id"], {}).get("fingerprint") == stability.fingerprint(files) if files else False
+        summary(
+            f"| {b['tournament']} | {b['fecha']} | {len(files)} | "
+            f"{'-' if mins is None else round(mins)} | {'sí' if stable else 'no'} | {'sí' if done else 'no'} |"
+        )
+
+
+def process_batch(svc, batch: dict, files: list[dict]) -> dict:
+    from . import analyze, imaging
+
+    seen_md5: dict[str, str] = {}
+    items, usage = [], {"input": 0, "output": 0}
+    for n, f in enumerate(sorted(files, key=lambda x: x["name"]), 1):
+        item = {"id": f["id"], "name": f["name"], "webViewLink": f.get("webViewLink", "")}
+        md5 = f.get("md5Checksum")
+        if md5 and md5 in seen_md5:
+            item.update(valid=True, duplicate_of=seen_md5[md5], width=0, height=0, short_side=0, sharpness=0)
+            items.append(item)
+            continue
+        if md5:
+            seen_md5[md5] = f["name"]
+
+        data = drive.download(svc, f["id"])
+        if f.get("size") and int(f["size"]) != len(data):
+            item.update(valid=False, incomplete=True)
+            items.append(item)
+            continue
+        info = imaging.inspect(data)
+        preview = info.pop("preview_jpeg", None)
+        item.update(info)
+        if item["valid"] and not selection.technical_reasons(item) and preview:
+            result, used, err = analyze.analyze(preview)
+            item["analysis"], item["analysis_error"] = result, err
+            usage["input"] += used["input"]
+            usage["output"] += used["output"]
+        items.append(item)
+        if n % 10 == 0:
+            print(f"  procesadas {n}/{len(files)}")
+
+    reasons = {i["id"]: selection.exclusion_reasons(i) for i in items}
+    selected = selection.select(items, config.SELECT_COUNT)
+    return {"items": items, "selected": selected, "reasons": reasons, "usage": usage}
+
+
+def run_full(svc, only_folder: str) -> int:
+    now = datetime.now(timezone.utc)
+    state = load_state()
+    processed = 0
+    for b in drive.find_batches(svc, only_folder):
+        if processed >= config.MAX_BATCHES_PER_RUN:
+            break
+        files = drive.list_images(svc, b["folder_id"])
+        if not files:
+            continue
+        fp = stability.fingerprint(files)
+        if state["batches"].get(b["folder_id"], {}).get("fingerprint") == fp:
+            continue  # ya procesado, sin cambios
+        if not stability.is_stable(files, now, config.STABLE_MINUTES):
+            print(f"{b['tournament']} {b['fecha']}: carga en curso, se espera.")
+            continue
+
+        print(f"Procesando {b['tournament']} {b['fecha']} ({len(files)} fotos)...")
+        res = process_batch(svc, b, files)
+        md = report.build_markdown(b, res["items"], res["selected"], res["reasons"], res["usage"])
+        out = Path(report.report_filename(b, now))
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(md, encoding="utf-8")
+
+        html = report.build_html(b, res["items"], res["selected"], res["reasons"], res["usage"])
+        mail_status = report.send_mail(f"DEPORTIVASA — Resumen (prueba): {b['tournament']} {b['fecha']}", html)
+        summary(f"**{b['tournament']} {b['fecha']}**: {len(res['selected'])} elegidas de {len(files)}. {mail_status}.")
+
+        state["batches"][b["folder_id"]] = {
+            "fingerprint": fp,
+            "processed_at": now.isoformat(),
+            "selected": [i["name"] for i in res["selected"]],
+        }
+        save_state(state)
+        processed += 1
+    if processed == 0:
+        summary("No había lotes nuevos y estables para procesar.")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=["listing", "full"], default="listing")
+    parser.add_argument("--folder-id", default="")
+    args = parser.parse_args()
+    svc = drive.client()
+    if args.mode == "listing":
+        run_listing(svc, args.folder_id)
+        return 0
+    return run_full(svc, args.folder_id)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
