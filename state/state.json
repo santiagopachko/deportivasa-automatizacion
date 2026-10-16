@@ -1,30 +1,3 @@
 {
-  "batches": {
-    "1SsAB9GElQ6JRrX6UQ_ffklBO-zJ5x7jp": {
-      "fingerprint": "9b164f293196b1bb73bc252bcff7a40000b60887",
-      "processed_at": "2026-10-16T03:07:43.840926+00:00",
-      "selected": [
-        "DSC_0929.jpg",
-        "DSC_0935.jpg",
-        "DSC_0950.jpg",
-        "DSC_0969.jpg",
-        "DSC_0981.jpg",
-        "DSC_0985.jpg",
-        "DSC_0994.jpg",
-        "DSC_1005.jpg",
-        "DSC_1014.jpg",
-        "DSC_1019.jpg",
-        "DSC_1030.jpg",
-        "DSC_1040.jpg",
-        "DSC_1045.jpg",
-        "DSC_1061.jpg",
-        "DSC_1072.jpg",
-        "DSC_1073.jpg",
-        "DSC_1090.jpg",
-        "DSC_1095.jpg",
-        "DSC_1100.jpg",
-        "DSC_1107.jpg"
-      ]
-    }
-  }
+  "batches": {}
 }

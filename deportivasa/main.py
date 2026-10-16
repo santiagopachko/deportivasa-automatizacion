@@ -5,6 +5,7 @@ Modos:
   full     Descarga, revisa con IA, elige las mejores y envía el resumen.
 """
 import argparse
+import csv
 import json
 import os
 import sys
@@ -134,6 +135,18 @@ def run_full(svc, only_folder: str) -> int:
             json.dumps(report.build_publish_list(b, res["selected"], now), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        # Métricas de TODAS las fotos, para calibrar los umbrales con datos reales.
+        metrics_path = out.with_name(out.stem + "_metricas.csv")
+        chosen = {i["id"] for i in res["selected"]}
+        with metrics_path.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh)
+            writer.writerow(["archivo", "ancho", "alto", "nitidez", "papel", "elegida", "motivos_exclusion"])
+            for i in sorted(res["items"], key=lambda x: x["name"]):
+                writer.writerow([
+                    i["name"], i.get("width", ""), i.get("height", ""), i.get("sharpness", ""),
+                    i.get("paper_ratio", ""), "sí" if i["id"] in chosen else "no",
+                    "; ".join(res["reasons"][i["id"]]),
+                ])
         md += (
             "\n## Para revisar y dar el OK\n"
             f"- Hoja de contactos (fotos numeradas como en la lista de arriba): `{sheet_path.name}`\n"
